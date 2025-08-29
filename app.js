@@ -41,21 +41,21 @@ async function getWeatherData(location) {
 }
 
 async function getFromCache(location) {
-  try {
-    const cacheResult = await redis.get(location);
-    return cacheResult ? JSON.parse(cacheResult) : null;
-  } catch (err) {
-    console.error("Erro ao ler cache:", err);
-    return null;
-  }
+    try {
+        const cacheResult = await redis.get(location);
+        return cacheResult ? JSON.parse(cacheResult) : null;
+    } catch (err) {
+        console.error("Error reading cache:", err);
+        return null;
+    }
 }
 
 async function cacheWeatherData(location, data) {
-  try {
-    await redis.setEx(location, 60, JSON.stringify(data));
-  } catch (err) {
-    console.error("Erro ao salvar no cache:", err);
-  }
+    try {
+        await redis.setEx(location, 60, JSON.stringify(data));
+    } catch (err) {
+        console.error("Error saving to cache:", err);
+    }
 }
 
 app.use(limiter);
