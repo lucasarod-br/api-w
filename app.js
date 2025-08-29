@@ -1,6 +1,7 @@
 const express = require('express');
 const axios = require('axios');
 const rateLimit = require('express-rate-limit');
+const { createClient } = require('redis');
 
 const app = express();
 
@@ -12,15 +13,25 @@ const limiter = rateLimit({
   message: "Too many requests from this IP, please try again after 1 minute",
 });
 
+const redis = createClient({
+  url: process.env.REDIS_URL
+});
+
 app.use(limiter);
 
 
-app.get('/weather', (req, res) => {
+app.get('/weather', async (req, res) => {
     const location = req.query.location || 'New York';
+    
+    await redis.connect().catch(console.error);
+
+    const cacheResult = await redis.get(location);
+    if (cacheResult) {
+        return res.json(JSON.parse(cacheResult));
+    }
 
     const url = BASE_URL.replace('[location]', location);
-
-    axios.get(url)
+    await axios.get(url)
         .then(response => {
             const currentConditions = response.data.currentConditions;
             const result = {
@@ -28,6 +39,7 @@ app.get('/weather', (req, res) => {
                 temperature: currentConditions.temp,
                 description: currentConditions.conditions,
             }
+            redis.setEx(location, 3600, JSON.stringify(result));
             res.json(result);
         })
         .catch(error => {
