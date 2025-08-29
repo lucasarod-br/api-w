@@ -17,42 +17,66 @@ const limiter = rateLimit({
 const redis = createClient({
   url: process.env.REDIS_URL,
 });
+redis.on("error", (err) => console.error("❌ Redis error:", err));
+
+(async () => {
+    try {
+        await redis.connect();
+        console.log("✅ Redis connected!");
+    } catch (err) {
+        console.error("Error connecting to Redis:", err);
+    }
+})();
+
+async function getWeatherData(location) {
+  const url = BASE_URL.replace("[location]", location);
+  const response = await axios.get(url);
+
+  const currentConditions = response.data.currentConditions;
+  return {
+    location: response.data.resolvedAddress,
+    temperature: currentConditions.temp,
+    description: currentConditions.conditions,
+  };
+}
+
+async function getFromCache(location) {
+  try {
+    const cacheResult = await redis.get(location);
+    return cacheResult ? JSON.parse(cacheResult) : null;
+  } catch (err) {
+    console.error("Erro ao ler cache:", err);
+    return null;
+  }
+}
+
+async function cacheWeatherData(location, data) {
+  try {
+    await redis.setEx(location, 60, JSON.stringify(data));
+  } catch (err) {
+    console.error("Erro ao salvar no cache:", err);
+  }
+}
 
 app.use(limiter);
-
 app.get("/weather", async (req, res) => {
   const location = req.query.location || "New York";
 
-  await redis.connect().catch(console.error);
-  const redisOn = await redis.ping();
-  if (redisOn) {
-    const cacheResult = await redis.get(location);
-    if (cacheResult) {
-      return res.json(JSON.parse(cacheResult));
+  try {
+    const cached = await getFromCache(location);
+    if (cached) {
+      return res.json({ ...cached, cached: true });
     }
+
+    const data = await getWeatherData(location);
+
+    await cacheWeatherData(location, data);
+
+    return res.json({ ...data, cached: false });
+  } catch (err) {
+    console.error("Erro na rota /weather:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
-
-  const url = BASE_URL.replace("[location]", location);
-  await axios
-    .get(url)
-    .then((response) => {
-      const currentConditions = response.data.currentConditions;
-      const result = {
-        location: response.data.resolvedAddress,
-        temperature: currentConditions.temp,
-        description: currentConditions.conditions,
-      };
-      if (redisOn) {
-        redis.setEx(location, 60, JSON.stringify(result));
-      }
-      res.json(result);
-    })
-    .catch((error) => {
-      console.error(error);
-      res.status(500).json({ error: "Failed to fetch weather data" });
-    });
 });
 
-app.listen(3000, () => {
-  console.log("Weather API is running on http://localhost:3000");
-});
+app.listen(3000);
