@@ -1,6 +1,6 @@
 # Weather API
 
-A simple Express.js application that provides current weather data for a specified location. It includes caching with Redis and basic rate limiting.
+A simple Express.js application that provides current weather data for a specified location. It includes caching with Redis and basic rate limiting. Available in https://api-w-6hoc.onrender.com
 
 ## Features
 
