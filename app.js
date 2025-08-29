@@ -39,7 +39,7 @@ app.get('/weather', async (req, res) => {
                 temperature: currentConditions.temp,
                 description: currentConditions.conditions,
             }
-            redis.setEx(location, 3600, JSON.stringify(result));
+            redis.setEx(location, 60, JSON.stringify(result));
             res.json(result);
         })
         .catch(error => {
